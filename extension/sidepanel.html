@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>知行 · AI认知监督台</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand-row">
+      <div class="brand-mark" aria-hidden="true">知</div>
+      <div>
+        <h1>知行</h1>
+        <p>AI认知监督台</p>
+      </div>
+      <span class="local-badge">本地模式</span>
+    </div>
+    <p class="security-note">不联网 · 不读取整页 · 不自动发送</p>
+  </header>
+
+  <main>
+    <section class="panel task-panel">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">01 · 目标</span>
+          <h2>先固定现实目标</h2>
+        </div>
+        <button id="saveCheckpointBtn" class="text-button">保存检查点</button>
+      </div>
+      <label for="goalInput">当前目标</label>
+      <input id="goalInput" type="text" placeholder="例如：确定产品第一版应该做什么" maxlength="240" />
+      <label for="successInput">完成标准</label>
+      <input id="successInput" type="text" placeholder="例如：形成一个能安装、能测试的插件" maxlength="240" />
+    </section>
+
+    <section class="panel input-panel">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">02 · 输入</span>
+          <h2>导入需要监督的内容</h2>
+        </div>
+        <span id="charCount" class="muted">0 字</span>
+      </div>
+      <textarea id="conversationInput" rows="11" placeholder="选择网页中的一段对话后点击“读取选中文字”，或直接粘贴最近几轮对话。"></textarea>
+      <div class="button-row">
+        <button id="readSelectionBtn" class="secondary-button">读取选中文字</button>
+        <button id="analyzeBtn" class="primary-button">分析偏航</button>
+        <button id="clearBtn" class="icon-button" title="清空输入" aria-label="清空输入">清空</button>
+      </div>
+      <p id="statusMessage" class="status-message" role="status"></p>
+    </section>
+
+    <section id="resultSection" class="result-section hidden" aria-live="polite">
+      <div class="result-hero">
+        <div>
+          <span class="eyebrow">03 · 判断</span>
+          <h2 id="resultConclusion">等待分析</h2>
+        </div>
+        <span id="riskBadge" class="risk-badge risk-low">低风险</span>
+      </div>
+
+      <div class="metric-grid">
+        <article class="metric-card">
+          <span>主要问题</span>
+          <strong id="mainIssue">—</strong>
+        </article>
+        <article class="metric-card">
+          <span>现实推进</span>
+          <strong id="progressState">—</strong>
+        </article>
+        <article class="metric-card">
+          <span>当前闸门</span>
+          <strong id="actionGate">—</strong>
+        </article>
+      </div>
+
+      <section class="panel compact-panel">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">04 · 证据</span>
+            <h2>事实与假设</h2>
+          </div>
+        </div>
+        <div class="evidence-columns">
+          <div>
+            <h3>疑似事实</h3>
+            <ul id="factList" class="evidence-list"></ul>
+          </div>
+          <div>
+            <h3>待验证假设</h3>
+            <ul id="assumptionList" class="evidence-list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel compact-panel">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">05 · 风险</span>
+            <h2>检测到的偏航信号</h2>
+          </div>
+        </div>
+        <ul id="signalList" class="signal-list"></ul>
+      </section>
+
+      <section class="panel next-panel">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">06 · 行动</span>
+            <h2>下一项最小动作</h2>
+          </div>
+        </div>
+        <p id="nextAction" class="next-action"></p>
+        <label for="promptOutput">给当前 AI 的纠偏指令</label>
+        <textarea id="promptOutput" rows="12" readonly></textarea>
+        <div class="button-row">
+          <button id="copyPromptBtn" class="primary-button">复制纠偏指令</button>
+          <button id="exportBtn" class="secondary-button">导出本次记录</button>
+        </div>
+      </section>
+    </section>
+
+    <section class="panel history-panel">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">记录</span>
+          <h2>最近检查点</h2>
+        </div>
+        <button id="deleteAllBtn" class="danger-text-button">删除全部数据</button>
+      </div>
+      <div id="historyList" class="history-list">
+        <p class="empty-state">还没有保存的检查点。</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <a href="privacy.html" target="_blank" rel="noreferrer">隐私与数据说明</a>
+    <span>v0.1.0</span>
+  </footer>
+
+  <script src="analyzer.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

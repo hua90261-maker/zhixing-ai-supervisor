@@ -1,0 +1,13 @@
+The extension has no account, backend, external API, remote code, analytics, or network requests.
+
+To test:
+1. Open any ordinary webpage.
+2. Select at least 20 characters of visible text.
+3. Click the extension toolbar icon to open the side panel.
+4. Click the button labeled “读取选中文字”.
+5. Enter a goal and success criterion.
+6. Click “分析偏航”.
+7. The extension performs deterministic local analysis and displays a corrective prompt.
+8. Test export, checkpoint and delete-all functions.
+
+The activeTab/scripting permissions are used only to read window.getSelection().toString() after a user gesture. No unselected page content is read.
