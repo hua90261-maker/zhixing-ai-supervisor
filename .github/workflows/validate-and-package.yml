@@ -31,8 +31,15 @@ jobs:
       - name: Package extension
         run: python scripts/package_extension.py
 
+      - name: Verify candidate package identity
+        run: |
+          test "$(find dist -maxdepth 1 -type f -name 'zhixing-ai-supervisor-v*.zip' | wc -l)" -eq 1
+          test -f dist/zhixing-ai-supervisor-v0.2.0-rc.1.zip
+          sha256sum dist/zhixing-ai-supervisor-v0.2.0-rc.1.zip
+
       - name: Upload candidate package
         uses: actions/upload-artifact@v4
         with:
-          name: zhixing-candidate-package
-          path: dist/*.zip
+          name: zhixing-ai-supervisor-v0.2.0-rc.1
+          path: dist/zhixing-ai-supervisor-v0.2.0-rc.1.zip
+          if-no-files-found: error
