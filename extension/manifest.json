@@ -2,7 +2,8 @@
   "manifest_version": 3,
   "name": "知行 · AI认知监督台",
   "short_name": "知行监督台",
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "version_name": "0.2.0-rc.1",
   "description": "在本地检查AI对话中的偏航、假设、重复与停止条件，生成可复制的纠偏指令。",
   "minimum_chrome_version": "114",
   "permissions": [

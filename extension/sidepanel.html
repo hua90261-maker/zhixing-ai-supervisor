@@ -20,38 +20,78 @@
   </header>
 
   <main>
-    <section class="panel task-panel">
-      <div class="section-heading">
-        <div>
-          <span class="eyebrow">01 · 目标</span>
-          <h2>先固定现实目标</h2>
-        </div>
-        <button id="saveCheckpointBtn" class="text-button">保存检查点</button>
-      </div>
-      <label for="goalInput">当前目标</label>
-      <input id="goalInput" type="text" placeholder="例如：确定产品第一版应该做什么" maxlength="240" />
-      <label for="successInput">完成标准</label>
-      <input id="successInput" type="text" placeholder="例如：形成一个能安装、能测试的插件" maxlength="240" />
-    </section>
-
     <section class="panel input-panel">
       <div class="section-heading">
         <div>
-          <span class="eyebrow">02 · 输入</span>
-          <h2>导入需要监督的内容</h2>
+          <span class="eyebrow">01 · 快速检查</span>
+          <h2>直接粘贴需要检查的对话</h2>
         </div>
         <span id="charCount" class="muted">0 字</span>
       </div>
       <textarea id="conversationInput" rows="11" placeholder="选择网页中的一段对话后点击“读取选中文字”，或直接粘贴最近几轮对话。"></textarea>
       <div class="button-row">
         <button id="readSelectionBtn" class="secondary-button">读取选中文字</button>
-        <button id="analyzeBtn" class="primary-button">分析偏航</button>
+        <button id="quickAnalyzeBtn" class="primary-button">快速检查</button>
         <button id="clearBtn" class="icon-button" title="清空输入" aria-label="清空输入">清空</button>
       </div>
       <p id="statusMessage" class="status-message" role="status"></p>
     </section>
 
-    <section id="resultSection" class="result-section hidden" aria-live="polite">
+    <section id="quickResultSection" class="result-section hidden" aria-live="polite">
+      <div class="result-hero">
+        <div>
+          <span class="eyebrow">02 · 检查结果</span>
+          <h2 id="quickConclusion">等待检查</h2>
+        </div>
+        <span id="quickBadge" class="risk-badge risk-low">未检查</span>
+      </div>
+
+      <section class="panel compact-panel result-block">
+        <h3>1. 结论</h3>
+        <p id="quickVerdict">—</p>
+      </section>
+      <section class="panel compact-panel result-block">
+        <h3>2. 直接证据</h3>
+        <ul id="quickDirectEvidence" class="evidence-list"></ul>
+      </section>
+      <section class="panel compact-panel result-block">
+        <h3>3. 辅助信号</h3>
+        <ul id="quickAuxiliarySignals" class="signal-list"></ul>
+      </section>
+      <section class="panel compact-panel result-block">
+        <h3>4. 判断边界</h3>
+        <p id="quickBoundary">—</p>
+      </section>
+      <section class="panel compact-panel next-panel result-block">
+        <h3>5. 下一项唯一动作</h3>
+        <p id="quickNextAction" class="next-action"></p>
+        <div class="button-row">
+          <button id="exportBtn" class="secondary-button">导出本次记录</button>
+        </div>
+      </section>
+    </section>
+
+    <details class="panel deep-check-panel">
+      <summary>
+        <span>
+          <span class="eyebrow">深入检查</span>
+          <strong>补充目标和完成标准</strong>
+        </span>
+      </summary>
+      <div class="deep-check-content">
+        <div class="section-heading">
+          <p class="muted deep-description">以下信息仅用于深入分析，快速检查无需填写。</p>
+          <button id="saveCheckpointBtn" class="text-button">保存检查点</button>
+        </div>
+        <label for="goalInput">当前目标</label>
+        <input id="goalInput" type="text" placeholder="例如：确定产品第一版应该做什么" maxlength="240" />
+        <label for="successInput">完成标准</label>
+        <input id="successInput" type="text" placeholder="例如：形成一个能安装、能测试的插件" maxlength="240" />
+        <button id="deepAnalyzeBtn" class="secondary-button full-width-button">运行深入检查</button>
+      </div>
+    </details>
+
+    <section id="deepResultSection" class="result-section hidden" aria-live="polite">
       <div class="result-hero">
         <div>
           <span class="eyebrow">03 · 判断</span>
@@ -116,7 +156,6 @@
         <textarea id="promptOutput" rows="12" readonly></textarea>
         <div class="button-row">
           <button id="copyPromptBtn" class="primary-button">复制纠偏指令</button>
-          <button id="exportBtn" class="secondary-button">导出本次记录</button>
         </div>
       </section>
     </section>
@@ -137,7 +176,7 @@
 
   <footer>
     <a href="privacy.html" target="_blank" rel="noreferrer">隐私与数据说明</a>
-    <span>v0.1.0</span>
+    <span>v0.2.0-rc.1</span>
   </footer>
 
   <script src="analyzer.js"></script>

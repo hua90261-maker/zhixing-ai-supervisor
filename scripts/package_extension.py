@@ -7,7 +7,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXT = ROOT / "extension"
 DIST = ROOT / "dist"
 manifest = json.loads((EXT / "manifest.json").read_text(encoding="utf-8"))
-version = manifest["version"]
+version = manifest.get("version_name", manifest["version"])
 output = DIST / f"zhixing-ai-supervisor-v{version}.zip"
 DIST.mkdir(exist_ok=True)
 
