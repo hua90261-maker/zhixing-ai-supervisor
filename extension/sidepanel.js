@@ -10,7 +10,15 @@
     input: document.getElementById("conversationInput"),
     charCount: document.getElementById("charCount"),
     status: document.getElementById("statusMessage"),
-    resultSection: document.getElementById("resultSection"),
+    quickResultSection: document.getElementById("quickResultSection"),
+    quickConclusion: document.getElementById("quickConclusion"),
+    quickBadge: document.getElementById("quickBadge"),
+    quickVerdict: document.getElementById("quickVerdict"),
+    quickDirectEvidence: document.getElementById("quickDirectEvidence"),
+    quickAuxiliarySignals: document.getElementById("quickAuxiliarySignals"),
+    quickBoundary: document.getElementById("quickBoundary"),
+    quickNextAction: document.getElementById("quickNextAction"),
+    deepResultSection: document.getElementById("deepResultSection"),
     conclusion: document.getElementById("resultConclusion"),
     risk: document.getElementById("riskBadge"),
     mainIssue: document.getElementById("mainIssue"),
@@ -91,7 +99,8 @@
   }
 
   function renderAnalysis(result) {
-    els.resultSection.classList.remove("hidden");
+    els.deepResultSection.classList.remove("hidden");
+    els.quickResultSection.classList.add("hidden");
     els.conclusion.textContent = result.conclusion;
     els.risk.textContent = result.risk === "high" ? "高风险" : result.risk === "medium" ? "中风险" : "低风险";
     els.risk.className = `risk-badge risk-${result.risk}`;
@@ -103,6 +112,25 @@
     listItems(els.facts, result.facts, "没有自动识别到可靠事实，请人工补充直接证据。");
     listItems(els.assumptions, result.assumptions, "没有自动识别到显式假设，仍需检查隐藏前提。");
     listItems(els.signals, result.signals, "未发现明显偏航信号。");
+  }
+
+  function renderQuickAnalysis(result) {
+    els.quickResultSection.classList.remove("hidden");
+    els.deepResultSection.classList.add("hidden");
+    els.quickConclusion.textContent = result.verdict;
+    els.quickVerdict.textContent = result.verdict;
+    els.quickBoundary.textContent = result.boundary;
+    els.quickNextAction.textContent = result.nextAction;
+    listItems(els.quickDirectEvidence, result.directEvidence, "没有可引用的直接证据。");
+    listItems(els.quickAuxiliarySignals, result.auxiliarySignals, "无；辅助信号不参与偏航定性。");
+
+    const badgeClass = result.verdict === "偏航"
+      ? "risk-high"
+      : result.verdict === "上下文不足"
+        ? "risk-medium"
+        : "risk-low";
+    els.quickBadge.textContent = result.verdict;
+    els.quickBadge.className = `risk-badge ${badgeClass}`;
   }
 
   function renderHistory() {
@@ -126,18 +154,33 @@
     });
   }
 
-  function runAnalysis() {
+  function validateDraft() {
     syncStateFromInputs();
     if (state.draft.trim().length < 20) {
       setStatus("请先粘贴或读取一段需要监督的内容。", "error");
-      return;
+      return false;
     }
+    return true;
+  }
+
+  function runQuickAnalysis() {
+    if (!validateDraft()) return;
+    const result = window.ZhixingAnalyzer.analyzeQuick(state.draft);
+    state.lastAnalysis = { mode: "quick", ...result };
+    renderQuickAnalysis(result);
+    storageSet(state);
+    setStatus("快速检查完成。结论仅基于当前可见内容，需要用现实证据复验。", "success");
+    els.quickResultSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function runAnalysis() {
+    if (!validateDraft()) return;
     const result = window.ZhixingAnalyzer.analyze(state.draft, { goal: state.goal, success: state.success });
-    state.lastAnalysis = result;
+    state.lastAnalysis = { mode: "deep", ...result };
     renderAnalysis(result);
     storageSet(state);
-    setStatus("分析完成。结果仅基于本地规则，需要用现实证据复验。", "success");
-    els.resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    setStatus("深入检查完成。结果仅基于本地规则，需要用现实证据复验。", "success");
+    els.deepResultSection.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   async function readSelection() {
@@ -177,9 +220,11 @@
       goal: state.goal,
       success: state.success,
       draftExcerpt: state.draft.slice(0, 500),
-      risk: state.lastAnalysis ? state.lastAnalysis.risk : null,
+      risk: state.lastAnalysis ? (state.lastAnalysis.risk || state.lastAnalysis.verdict) : null,
       riskLabel: state.lastAnalysis
-        ? state.lastAnalysis.risk === "high" ? "高风险" : state.lastAnalysis.risk === "medium" ? "中风险" : "低风险"
+        ? state.lastAnalysis.mode === "quick"
+          ? state.lastAnalysis.verdict
+          : state.lastAnalysis.risk === "high" ? "高风险" : state.lastAnalysis.risk === "medium" ? "中风险" : "低风险"
         : "未分析"
     });
     state.checkpoints = state.checkpoints.slice(0, 30);
@@ -199,7 +244,7 @@
     const payload = {
       exportedAt: new Date().toISOString(),
       product: "知行 · AI认知监督台",
-      version: "0.1.0",
+      version: "0.2.0-rc.1",
       goal: state.goal,
       successCriteria: state.success,
       sourceText: state.draft,
@@ -222,7 +267,8 @@
     els.goal.value = "";
     els.success.value = "";
     els.input.value = "";
-    els.resultSection.classList.add("hidden");
+    els.quickResultSection.classList.add("hidden");
+    els.deepResultSection.classList.add("hidden");
     updateCharCount();
     renderHistory();
     setStatus("本地数据已全部删除。", "success");
@@ -247,7 +293,10 @@
     els.input.value = state.draft || "";
     updateCharCount();
     renderHistory();
-    if (state.lastAnalysis) renderAnalysis(state.lastAnalysis);
+    if (state.lastAnalysis) {
+      if (state.lastAnalysis.mode === "quick") renderQuickAnalysis(state.lastAnalysis);
+      else renderAnalysis(state.lastAnalysis);
+    }
     loadDemoIfRequested();
   }
 
@@ -255,7 +304,8 @@
   els.success.addEventListener("input", scheduleSave);
   els.input.addEventListener("input", () => { updateCharCount(); scheduleSave(); });
   document.getElementById("readSelectionBtn").addEventListener("click", readSelection);
-  document.getElementById("analyzeBtn").addEventListener("click", runAnalysis);
+  document.getElementById("quickAnalyzeBtn").addEventListener("click", runQuickAnalysis);
+  document.getElementById("deepAnalyzeBtn").addEventListener("click", runAnalysis);
   document.getElementById("clearBtn").addEventListener("click", () => {
     els.input.value = "";
     state.draft = "";

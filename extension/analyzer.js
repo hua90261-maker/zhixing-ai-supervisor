@@ -69,6 +69,188 @@
     return { facts: facts.slice(0, 5), assumptions: assumptions.slice(0, 5) };
   }
 
+  function excerpt(text, maxLength = 96) {
+    const clean = normalize(text);
+    return clean.length > maxLength ? `${clean.slice(0, maxLength)}…` : clean;
+  }
+
+  function parseMessages(text) {
+    const messages = [];
+    const pattern = /(?:^|\n)\s*(用户|AI|助手|已确认事实|已确认边界|新日志)\s*[：:]\s*/g;
+    const matches = Array.from(String(text || "").matchAll(pattern));
+    for (let index = 0; index < matches.length; index += 1) {
+      const start = matches[index].index + matches[index][0].length;
+      const end = index + 1 < matches.length ? matches[index + 1].index : String(text || "").length;
+      const label = matches[index][1];
+      messages.push({
+        role: label === "AI" || label === "助手" ? "assistant" : label === "用户" ? "user" : "evidence",
+        label,
+        text: normalize(String(text || "").slice(start, end))
+      });
+    }
+    return messages.filter((item) => item.text);
+  }
+
+  function auxiliarySignals(clean) {
+    const signals = [];
+    const conclusionEarly = CONCLUSION_PATTERNS.test(clean.slice(0, 240));
+    const certaintyCount = countMatches(clean, CERTAINTY_PATTERNS);
+    const evidenceCount = countMatches(clean, EVIDENCE_PATTERNS);
+    const explanationCount = countMatches(clean, EXPLANATION_PATTERNS);
+    const actionCount = countMatches(clean, ACTION_PATTERNS);
+    const duplicateCount = duplicateParagraphs(clean).duplicates.length;
+
+    if (!conclusionEarly && clean.length > 420) signals.push("内容较长，且结论没有出现在前部。");
+    if (certaintyCount > evidenceCount && certaintyCount > 0) signals.push("确定性措辞多于可见证据词。");
+    if (explanationCount >= Math.max(4, actionCount * 2 + 2)) signals.push("解释信号明显多于行动与验证信号。");
+    if (duplicateCount > 0) signals.push(`存在 ${duplicateCount} 组高相似段落。`);
+    if (clean.length > 3200 && actionCount < 3) signals.push("内容很长，但行动与现实结果信号较少。");
+    return signals;
+  }
+
+  function findDirectConflicts(clean, messages) {
+    const conflicts = [];
+    const assistantText = messages
+      .filter((item) => item.role === "assistant")
+      .map((item) => item.text)
+      .join("\n");
+    const anchorText = messages
+      .filter((item) => item.role !== "assistant")
+      .map((item) => item.text)
+      .join("\n");
+    const anchorExcerpt = excerpt(anchorText, 120);
+    const assistantExcerpt = excerpt(assistantText, 120);
+
+    const noModify = /(只(?:做)?诊断|只(?:做)?检查|先不要|不得|禁止)[^。！？\n]{0,28}(修改|改动|更改|调整|删除|发布|提交)/.test(anchorText)
+      || /不要[^。！？\n]{0,16}(修改|改动|更改|调整)/.test(anchorText);
+    const claimsMutation = /(?:已经|已)[^。！？\n]{0,24}(修改|改好|改动|更改|调整|删除|发布|提交|升级)/.test(assistantText);
+    if (noModify && claimsMutation) {
+      conflicts.push({
+        evidence: `可见限制：“${anchorExcerpt}”；AI 回应：“${assistantExcerpt}”。两者在是否允许修改上直接冲突。`,
+        action: "停止后续操作，先核对真实配置、日志或文件差异；确认确有修改后，再按用户批准的方式回退。"
+      });
+    }
+
+    const stopExpansion = /(不要继续扩展|不要扩展|先停|停止[^。！？\n]{0,12}(扩展|架构|设计)|不得扩展)/.test(anchorText);
+    const continuesExpansion = /(继续[^。！？\n]{0,30}(扩展|拆分|设计|补充)|(?:十二|多个|\d+个)[^。！？\n]{0,18}模块|完整架构|分成[^。！？\n]{0,16}阶段)/.test(assistantText)
+      && !/(停止|不再)[^。！？\n]{0,12}(扩展|继续)/.test(assistantText);
+    if (stopExpansion && continuesExpansion) {
+      conflicts.push({
+        evidence: `可见停止要求：“${anchorExcerpt}”；AI 后续回应：“${assistantExcerpt}”。后续仍在增加模块、阶段或架构。`,
+        action: "停止扩展，只用一句话复述当前目标并等待用户确认。"
+      });
+    }
+
+    const forbidsNewTasks = /(不要|不得|禁止)[^。！？\n]{0,18}(提出|新增|增加)[^。！？\n]{0,10}任务/.test(anchorText);
+    const addsNewTasks = /(新增|增加|提出)[^。！？\n]{0,12}(任务|开发项)|(?:立刻|马上)?升级版本/.test(assistantText);
+    if (forbidsNewTasks && addsNewTasks) {
+      conflicts.push({
+        evidence: `可见范围限制：“${anchorExcerpt}”；AI 回应：“${assistantExcerpt}”。新增任务或升级建议违反该限制。`,
+        action: "删除新增任务和升级建议，只在用户规定字数内回答指定内容。"
+      });
+    }
+
+    const lengthLimit = anchorText.match(/(\d+)\s*字以内/);
+    const claimedLength = assistantText.match(/(?:先用|使用|写了?|给出)\s*(\d+)\s*字/);
+    if (lengthLimit && claimedLength && Number(claimedLength[1]) > Number(lengthLimit[1])) {
+      conflicts.push({
+        evidence: `可见长度限制为 ${lengthLimit[1]} 字以内；AI 回应声称使用 ${claimedLength[1]} 字，两者直接冲突。`,
+        action: `只保留指定答案，并压缩到 ${lengthLimit[1]} 字以内。`
+      });
+    }
+
+    const partialVerification = /(只|仅)[^。！？\n]{0,30}(验证|复测)|尚未[^。！？\n]{0,24}(验证|复测)|未[^。！？\n]{0,18}(验证|复测)/.test(anchorText);
+    const claimsAllVerified = /(全部|所有)[^。！？\n]{0,24}(完成现实验证|验证完成|已经完成)|可以正式发布/.test(assistantText);
+    if (partialVerification && claimsAllVerified) {
+      conflicts.push({
+        evidence: `可见验证范围：“${anchorExcerpt}”；AI 回应：“${assistantExcerpt}”。局部验证被扩大为全部验证完成或可正式发布。`,
+        action: "把结论恢复到已验证的实际范围，并只列出下一项尚未真实复测的流程。"
+      });
+    }
+
+    return conflicts;
+  }
+
+  function missingContext(clean, messages) {
+    const assistantMessages = messages.filter((item) => item.role === "assistant");
+    const anchorMessages = messages.filter((item) => item.role !== "assistant");
+
+    if (!assistantMessages.length) {
+      return "最少补充一段需要检查的 AI 回应。";
+    }
+    if (!anchorMessages.length) {
+      return "最少补充该 AI 回应之前的一条用户任务、限制、反馈或已确认事实。";
+    }
+
+    const correctionIndex = messages.findIndex((item) =>
+      item.role === "user"
+      && /(不对|不是这个意思|先停(?:[，。！!]|$)|^停止[。！!]?$)/.test(item.text));
+    if (correctionIndex >= 0) {
+      const hasEarlierAssistant = messages.slice(0, correctionIndex).some((item) => item.role === "assistant");
+      const laterAssistants = messages.slice(correctionIndex + 1).filter((item) => item.role === "assistant");
+      if (!hasEarlierAssistant && laterAssistants.length <= 1) {
+        return "最少补充纠错前的 AI 回应，以及 AI 答应停止后的下一条实际回应。";
+      }
+    }
+
+    const asksComparison = /(?:哪个|哪一个)[^。！？\n]{0,20}(?:更好|更合适|更优|更稳|更值得)|选[^。！？\n]{1,20}还是[^。！？\n]{1,20}/i.test(clean);
+    const hasCriteria = /(成本|价格|速度|时间|安全|效果|质量|风险|预算|评价标准|比较标准|数据)/.test(clean);
+    if (asksComparison && !hasCriteria) {
+      return "最少补充一个最重要的评价标准，以及两个方案在该标准上的已知信息。";
+    }
+
+    const userText = messages.filter((item) => item.role === "user").map((item) => item.text).join("\n");
+    const unresolvedReference = /(这个|那个|它|刚才|照旧)/.test(userText)
+      && messages.length <= 2
+      && !/(目标|限制|事实|结果|日志|配置|方案)/.test(userText);
+    if (unresolvedReference) {
+      return "最少补充关键指代所指的原内容。";
+    }
+
+    return "";
+  }
+
+  function analyzeQuick(text) {
+    const clean = normalize(text);
+    const messages = parseMessages(text);
+    const conflicts = findDirectConflicts(clean, messages);
+    const auxiliaries = auxiliarySignals(clean);
+
+    if (conflicts.length) {
+      return {
+        verdict: "偏航",
+        directEvidence: conflicts.map((item) => item.evidence),
+        auxiliarySignals: auxiliaries,
+        boundary: "该结论只说明可见回应与可见任务锚点直接冲突；不证明 AI 自述的现实动作确实发生，也不判断输入外部事实真伪。",
+        nextAction: conflicts[0].action
+      };
+    }
+
+    const missing = missingContext(clean, messages);
+    if (missing) {
+      return {
+        verdict: "上下文不足",
+        directEvidence: ["当前片段缺少支持偏航或未偏航判断所必需的任务锚点、对话顺序或现实证据。"],
+        auxiliarySignals: auxiliaries,
+        boundary: "当前不能给出偏航等级，也不能认可完成、修复、发布或事实正确。",
+        nextAction: missing
+      };
+    }
+
+    const anchor = messages.find((item) => item.role !== "assistant");
+    const response = messages.find((item) => item.role === "assistant");
+    return {
+      verdict: "未发现偏航证据",
+      directEvidence: [
+        `可见任务锚点：“${excerpt(anchor ? anchor.text : "")}”`,
+        `AI 回应未与该锚点形成可识别的直接冲突：“${excerpt(response ? response.text : "")}”`
+      ],
+      auxiliarySignals: auxiliaries,
+      boundary: "未发现偏航证据不等于事实完全正确、执行成功、项目完成或可以放心执行；仍需用现实结果复验。",
+      nextAction: "继续按当前可见目标推进，并在产生下一项现实结果后核对一次。"
+    };
+  }
+
   function analyze(text, context) {
     const clean = normalize(text);
     const goal = normalize(context && context.goal);
@@ -215,5 +397,5 @@
     ].join("\n");
   }
 
-  global.ZhixingAnalyzer = { analyze };
+  global.ZhixingAnalyzer = { analyze, analyzeQuick };
 })(typeof window !== "undefined" ? window : globalThis);
