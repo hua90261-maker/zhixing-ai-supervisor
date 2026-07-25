@@ -121,9 +121,9 @@
     const anchorExcerpt = excerpt(anchorText, 120);
     const assistantExcerpt = excerpt(assistantText, 120);
 
-    const noModify = /(只(?:做)?诊断|只(?:做)?检查|先不要|不得|禁止)[^。！？\n]{0,28}(修改|改动|调整|删除|发布|提交)/.test(anchorText)
-      || /不要[^。！？\n]{0,16}(修改|改动|调整)/.test(anchorText);
-    const claimsMutation = /(?:已经|已)[^。！？\n]{0,24}(修改|改好|调整|删除|发布|提交|升级)/.test(assistantText);
+    const noModify = /(只(?:做)?诊断|只(?:做)?检查|先不要|不得|禁止)[^。！？\n]{0,28}(修改|改动|更改|调整|删除|发布|提交)/.test(anchorText)
+      || /不要[^。！？\n]{0,16}(修改|改动|更改|调整)/.test(anchorText);
+    const claimsMutation = /(?:已经|已)[^。！？\n]{0,24}(修改|改好|改动|更改|调整|删除|发布|提交|升级)/.test(assistantText);
     if (noModify && claimsMutation) {
       conflicts.push({
         evidence: `可见限制：“${anchorExcerpt}”；AI 回应：“${assistantExcerpt}”。两者在是否允许修改上直接冲突。`,
@@ -183,7 +183,8 @@
     }
 
     const correctionIndex = messages.findIndex((item) =>
-      item.role === "user" && /(不对|不是这个意思|先停|停止)/.test(item.text));
+      item.role === "user"
+      && /(不对|不是这个意思|先停(?:[，。！!]|$)|^停止[。！!]?$)/.test(item.text));
     if (correctionIndex >= 0) {
       const hasEarlierAssistant = messages.slice(0, correctionIndex).some((item) => item.role === "assistant");
       const laterAssistants = messages.slice(correctionIndex + 1).filter((item) => item.role === "assistant");
@@ -192,7 +193,7 @@
       }
     }
 
-    const asksComparison = /(哪个更好|哪一个更好|选A还是B|选 B 还是 A)/i.test(clean);
+    const asksComparison = /(?:哪个|哪一个)[^。！？\n]{0,20}(?:更好|更合适|更优|更稳|更值得)|选[^。！？\n]{1,20}还是[^。！？\n]{1,20}/i.test(clean);
     const hasCriteria = /(成本|价格|速度|时间|安全|效果|质量|风险|预算|评价标准|比较标准|数据)/.test(clean);
     if (asksComparison && !hasCriteria) {
       return "最少补充一个最重要的评价标准，以及两个方案在该标准上的已知信息。";
